@@ -3,207 +3,19 @@ library(rdrop2)
 library(lubridate)
 library(tidyverse)
 library(stringr)
+library(wesanderson)
+library(ggthemes)
+
+theme_set(theme_bw(20))
+source("functions.R")
 #https://github.com/daattali/shiny-server/blob/master/mimic-google-form/app.R
 # Dropbox folders
 drop.folder <- "la_lista_de_la_compra"
 raw.responses.dir <- file.path(drop.folder, "responses_raw")
 db.responses.dir <- file.path(drop.folder, "responses_db")
+orders.file.name <- c("current_orders.csv")
+purchase.file.name <- c("purchases.csv")
 # source("global.R")
-
-# Function to catch errors in a given submit action
-catchy <- function(submit_type, f, args){
-  
-  # User-experience stuff
-  shinyjs::disable(submit_type)
-  shinyjs::show("submit_msg")
-  shinyjs::hide("error")
-  
-  # Save the data (show an error message in case of error)
-  tryCatch({
-    f(args)
-    # update.current.orders(orderformData())
-    shinyjs::reset("form")
-    shinyjs::hide("form")
-    shinyjs::show("thankyou_msg")
-  },
-  error = function(err) {
-    shinyjs::html("error_msg", err$message)
-    shinyjs::show(id = "error", anim = TRUE, animType = "fade")
-  },
-  finally = {
-    shinyjs::enable(submit_type)
-    shinyjs::hide("submit_msg")
-  })
-}
-  
-
-# get a formatted string of the timestamp (exclude colons as they are invalid
-# characters in Windows filenames)
-humanTime <- function() {
-  format(Sys.time(), "%Y%m%d-%H%M%OS")
-}
-
-
-load.current.orders.data  <- function() {
-  data <-  drop_read_csv(file.path(drop.folder, "current_orders.csv"), 
-                         colClasses = c("numeric", 
-                                        "character", 
-                                        "character", 
-                                        "POSIXct", 
-                                        "character")) %>% 
-    mutate(id = seq_along(date)) %>% 
-    select(id, name, item, date, priority)
-  data
-}
-
-update.current.orders <- function(data) {
-  data.updated <- bind_rows(
-    load.current.orders.data(),
-    data
-  )
-    filePath <- file.path(tempdir(), "current_orders.csv")
-    write.csv(data.updated, filePath, row.names = FALSE, quote = TRUE)
-    # Upload the file to Dropbox
-    drop_upload(filePath, dest = drop.folder)
-  }
-
-remove.orders <- function(args) {
-  data.updated <- args$data %>% 
-    filter(id != args$id)
-    # filter(!(date == args$date & name == args$name & item == args$item))
-    
-  filePath <- file.path(tempdir(), "current_orders.csv")
-  write.csv(data.updated, filePath, row.names = FALSE, quote = TRUE)
-  # Upload the file to Dropbox
-  drop_upload(filePath, dest = drop.folder)
-}
-
-remove.purchases <- function(args) {
-  date <- Sys.Date()
-  month <- month(date,label = T)
-  Y <- year(date)
-  file.name <- paste(Y, month, "purchases.csv", sep = "_")
-  
-  data.updated <- args$data %>% 
-    filter(id != args$id)
-  filePath <- file.path(tempdir(), file.name)
-  # filePath <- file.path(db.responses.dir, Y, month, file.name)
-  write.csv(data.updated, filePath, row.names = FALSE, quote = TRUE)
-  # Upload the file to Dropbox
-  drop_upload(filePath, dest = file.path(db.responses.dir, Y, month))
-}
-
-load.purchase.data <- function() {
-  date <- Sys.Date()
-  month <- month(date,label = T)
-  Y <- year(date)
-  file.name <- paste(Y, month, "purchases.csv", sep = "_")
-  
-  n_files <- drop_dir(file.path(db.responses.dir, Y, month)) %>% nrow()
-    # if there is not any data create an empty data.frame  
-    if(n_files == 0){
-      data <- data_frame(
-        name = character(0),
-        item = character(0),
-        date = .POSIXct(character(0)),
-        price = numeric(0),
-        id = numeric(0)
-      )
-    }else{
-      data <-drop_read_csv(file.path(db.responses.dir, Y, month, file.name), 
-                           colClasses = c("character", 
-                                          "character", 
-                                          "POSIXct", 
-                                          "numeric", 
-                                          "numeric"))  %>% 
-        mutate(id = seq_along(date)) 
-    }
-  data
-}
-
-
-handle_files <- function(){
-  # make sure there are folders for current year and month
-  current.folders.year <- drop_dir(file.path(db.responses.dir)) %>% 
-    mutate(folder = str_split(path, "/")[[1]][[4]])
-  
-  
-  if(Y %in% current.folders.year$folder){
-    print("is already there")
-  }else{
-    drop_create(file.path(db.responses.dir, Y))
-  }
-  
-  current.folders.month <- drop_dir(file.path(db.responses.dir, Y)) %>% 
-    mutate(folder = str_split(path, "/")[[1]][[5]])
-  
-  
-  if(month %in% current.folders.month$folder){
-    print("is already there2")
-  }else{
-    drop_create(file.path(db.responses.dir, Y, month))
-  }
-}
-
-
-update.purchase.answers <- function(data, new.item) {
-  # data <- pur
-  # pur.data = purchaseformData()
-  date <- Sys.Date()
-  month <- month(date,label = T)
-  Y <- year(date)
-  new.item <- data$item
-  # handle_files()
-  # # make sure there are folders for current year and month
-  current.folders.year <- drop_dir(file.path(db.responses.dir)) %>%
-    mutate(folder = str_split(path, "/")[[1]][[4]])
-  # handle_files()
-# 
-  if(Y %in% current.folders.year$folder){
-    print("is already there")
-  }else{
-    drop_create(file.path(db.responses.dir, Y))
-    }
-
-  current.folders.month <- drop_dir(file.path(db.responses.dir, Y)) %>%
-    mutate(folder = str_split(path, "/")[[1]][[5]])
-
-
-  if(month %in% current.folders.month$folder){
-    print("is already there2")
-  }else{
-    drop_create(file.path(db.responses.dir, Y, month))
-  }
-  
-  # data <- data_frame(1, "H", "coriander", Sys.time(), 2)
-  # colnames(data) <- colnames(d)
-  # Update the purchase file, add new elements
-  data.updated <- rbind(
-    # pur.data,
-    # purchaseformData(),
-    load.purchase.data(),
-    data[[1]]
-  )
-  print("loaded second time")
-  filePath <- file.path(tempdir(), paste(Y, month, "purchases.csv", sep = "_"))
-  write.csv(data.updated, filePath, row.names = FALSE, quote = TRUE)
-  # Upload the file to Dropbox
-  drop_upload(filePath, dest = file.path(db.responses.dir, Y, month))
-  
-  if(data[[2]] == FALSE){
-  # browser()
-  item.to.delete <- data[[1]]$item
-  # delete from the orders file the item that was purchased
-  data.orders <-load.current.orders.data() %>% 
-    filter(item != item.to.delete)
-  
-  filePath <- file.path(tempdir(), "current_orders.csv")
-  write.csv(data.orders, filePath, row.names = FALSE, quote = TRUE)
-  # Upload the file to Dropbox
-  drop_upload(filePath, dest = drop.folder)
-  }
-}
-
 
 
 shinyServer(function(input, output, session){
@@ -211,9 +23,31 @@ shinyServer(function(input, output, session){
     input$action
   })
   
+  #########################
+  ## render UI functions ##
+  #########################
+  
+  
   output$chooseFormType <- renderUI({
     
-    if(action() == "Add purchase"){
+    if(action() == "Add order"){
+      tagList(
+        selectInput("name", "Who",
+                    c(" ",  "E", "A", "H")),
+        textInput("item", "What"),
+        selectInput("priority", "Priority",
+                    c("",  "urgent", "take it easy")),
+        
+        actionButton("submit_order", "Submit order", class = "btn-primary"),
+        
+        shinyjs::hidden(
+          span(id = "submit_msg", "Submitting..."),
+          div(id = "error",
+              div(br(), tags$b("Error: "), span(id = "error_msg"))
+          )
+        )
+      )
+    }else if(action() == "Add purchase"){
       tagList(
         # id = "form_buy",
         h3 = "I bought something",
@@ -222,7 +56,7 @@ shinyServer(function(input, output, session){
                     c("",  "E", "A", "H")
         ),
         checkboxInput("newitemcheck", "The item was not in the list", F ),
-        uiOutput("buycheck"),
+        uiOutput("new.item.check"),
         ## TODO input for bought objects already in the list
         conditionalPanel(
           condition = "input.newitemcheck == true",
@@ -240,38 +74,10 @@ shinyServer(function(input, output, session){
           )
         )
       )
-    }else if(action() == "Add order"){
-      tagList(
-        # id = "form_need",
-        
-        selectInput("name", "Who",
-                    c("",  "E", "A", "H")),
-        textInput("item", "What"),
-        selectInput("priority", "Priority",
-                    c("",  "urgent", "take it easy")),
-        
-        actionButton("submit_order", "Submit order", class = "btn-primary"),
-        
-        shinyjs::hidden(
-          span(id = "submit_msg", "Submitting..."),
-          div(id = "error",
-              div(br(), tags$b("Error: "), span(id = "error_msg"))
-          )
-        )
-      )
     }else if(action() == "Remove order"){
       tagList(
-        # id = "form_need",
-        
-        # selectInput("name", "Who",
-                    # c("",  "E", "A", "H")),
-        # textInput("item", "What"),
-        # selectInput("priority", "Priority",
-                    # c("",  "urgent", "take it easy")),
         uiOutput("showOrdersID"),
-        # uiOutput("showOrdersDate"),
         actionButton("remove_order", "Remove order", class = "btn-primary"),
-        
         shinyjs::hidden(
           span(id = "submit_msg", "Submitting..."),
           div(id = "error",
@@ -281,17 +87,8 @@ shinyServer(function(input, output, session){
       )
     }else if(action() == "Remove purchase"){
       tagList(
-        # id = "form_need",
-        
-        # selectInput("name", "Who",
-                    # c("",  "E", "A", "H")),
-        # textInput("item", "What"),
-        # selectInput("priority", "Priority",
-        # c("",  "urgent", "take it easy")),
         uiOutput("showPurchasesID"),
-        # uiOutput("showPurchaseDate"),
         actionButton("remove_purchase", "Remove order", class = "btn-primary"),
-        
         shinyjs::hidden(
           span(id = "submit_msg", "Submitting..."),
           div(id = "error",
@@ -300,11 +97,210 @@ shinyServer(function(input, output, session){
         )
       )
     }
-    
-    
+  })
+  
+  output$new.item.check <- renderUI({
+    data <- load.orders.data(drop.folder = drop.folder, file.name = orders.file.name)
+    items <-  data$item
+    conditionalPanel(
+      condition = "input.newitemcheck == false",
+      selectInput("list.purchase.item", "What",
+                  items)
+    )
   })
   
   
+  output$showPurchasesID <- renderUI({
+    data <- load.purchase.data(drop.folder = drop.folder, 
+                               db.responses.dir = db.responses.dir,
+                               file.ending = purchase.file.name)
+    items <-  data$id
+    
+    
+    selectInput("remove.purchase.id", "Select ID of item to be removed",
+                items)
+  })
+  
+  output$showOrdersID <- renderUI({
+    data <- load.orders.data(drop.folder = drop.folder, file.name = orders.file.name)
+    items <-  data$id
+    
+    selectInput("remove.order.id", "Select ID of item to be removed",
+                items)
+  })
+  
+  # Show the responses already submitted
+  output$OrdersData <- DT::renderDataTable(
+    load.orders.data(drop.folder = drop.folder, file.name = orders.file.name) %>% 
+      mutate(date = as.character(date)),
+    rownames = FALSE,
+    options = list(searching = FALSE, lengthChange = FALSE)
+  )
+  
+  
+  output$PurchasesData <- DT::renderDataTable(
+    load.purchase.data(drop.folder = drop.folder, 
+                       db.responses.dir = db.responses.dir,
+                       file.ending = purchase.file.name) %>% 
+      mutate(date = as.character(date)) %>% 
+      arrange(desc(date)),
+    rownames = FALSE,
+    options = list(searching = FALSE, lengthChange = FALSE)
+  )
+  
+  
+  # Allow user to download responses
+  output$downloadPurchBtn <- downloadHandler(
+    filename = function() { 
+      sprintf("%s.csv", humanTime())
+    },
+    content = function(file) {
+      write.csv(load.purchase.data(drop.folder = drop.folder, 
+                                   db.responses.dir = db.responses.dir,
+                                   file.ending = purchase.file.name), file, row.names = FALSE)
+    }
+  )  
+  
+  # Allow user to download responses
+  output$downloadOrdersBtn <- downloadHandler(
+    filename = function() { 
+      sprintf("%s.csv", humanTime())
+    },
+    content = function(file) {
+      write.csv(load.orders.data(drop.folder = drop.folder, 
+                                         file.name = orders.file.name), file, row.names = FALSE)
+    }
+  )  
+  
+  output$table.orders <- renderUI({
+
+    # if(action() %in% c("Add purchase", "Remove purchase")){
+      
+    # }else if(action() %in% c("Add order", "Remove order")){
+      div(
+        h2("Current orders"),
+        downloadButton("downloadOrdersBtn", "Download Orders"), br(), br(),
+        DT::dataTableOutput("OrdersData") 
+      )
+    
+  
+    # }
+  })
+
+
+  
+  output$table.purchases <- renderUI({
+    div(
+      id = "adminPanel",
+      h2("Previous purchases"),
+      downloadButton("downloadPurchBtn", "Download purchases"), br(), br(),
+      DT::dataTableOutput("PurchasesData")
+      
+    )
+  })
+  
+  
+  output$plot.time.purchases <- renderPlot({
+    d <- load.purchase.data(drop.folder = drop.folder, 
+                            db.responses.dir = db.responses.dir,
+                            file.ending = purchase.file.name)
+    
+    d %>% 
+      arrange(date) %>% 
+      mutate(
+        time_d =  as.numeric(difftime(date, date[1], units= "day"))
+      ) %>% 
+      group_by(name) %>% 
+      mutate(paid = cumsum(price)) %>% 
+      ggplot(aes(x = time_d, y = paid, colour = name)) +
+      theme_solarized(20) +
+      scale_color_manual(name = "Who", values = wes_palette("Cavalcanti")) +
+      theme(legend.position = "top") +
+      geom_point(size = 5) +
+      geom_line() +
+      xlim(0, 31) +
+      ylim(0, NA) +
+      xlab("Time (days)") +
+      ylab("Money-money €")
+    
+    
+  })  
+  
+  output$plot.total.purchases <- renderPlot({
+    d <- load.purchase.data(drop.folder = drop.folder, 
+                      db.responses.dir = db.responses.dir,
+                      file.ending = purchase.file.name)
+    
+    d %>% 
+      group_by(name) %>% 
+      summarise(
+        total = sum(price) 
+      ) %>%  
+      ggplot(aes(x = name, y = total, colour = name)) +
+      theme_solarized(20) +
+      scale_color_manual(values = wes_palette("Cavalcanti")) +
+      geom_point(size = 5) +
+      theme(legend.position = "none") +
+      ylim(0, NA) +
+      xlab("Who") +
+      ylab("Money-money €")
+    
+  })
+  
+  output$table.total.paid <-renderDataTable({
+    d <- load.purchase.data(drop.folder = drop.folder, 
+                            db.responses.dir = db.responses.dir,
+                            file.ending = purchase.file.name)
+    
+    d %>% 
+      group_by(name) %>% 
+      summarise(
+        total = sum(price) 
+      )
+    
+  })
+  
+  output$adjust.payments <-renderTable({
+    # browser()
+    d <- load.purchase.data(drop.folder = drop.folder, 
+                            db.responses.dir = db.responses.dir,
+                            file.ending = purchase.file.name)
+    
+    total.per.person <- d %>% 
+      group_by(name) %>% 
+      summarise(
+        total = sum(price) 
+      )
+    total.month <- sum(total.per.person$total)
+    total.month.per.person <- total.month / length(unique(total.per.person$name))
+    out.table <- total.per.person %>% 
+      mutate(total_paid_month = total.month,
+             total_to_paid_per_person = total.month.per.person,
+             balance = total_to_paid_per_person - total)
+    out.table
+  })
+  
+  ####################
+  ### Server stuff ###
+  ####################
+  
+  
+  
+  ### Retrieve forms data ###
+  
+  ### Orders
+  # Gather all the form inputs (and add timestamp)
+  orderformData <- reactive({
+    data <- data_frame(
+      name = input$name,
+      item = input$item,
+      date = Sys.time(),
+      priority = input$priority
+    )
+    data
+  })
+  
+  ### Purchases
   # Gather all the form inputs (and add timestamp)
   purchaseformData <- reactive({
     data <- data_frame(
@@ -326,173 +322,126 @@ shinyServer(function(input, output, session){
   
   
   
-  # Gather all the form inputs (and add timestamp)
-  orderformData <- reactive({
-    data <- data_frame(
-      name = input$name,
-      item = input$item,
-      date = Sys.time(),
-      priority = input$priority
-    )
-    data
-  })
-  
-  # debug(catchy)
-  
-  
-  
-  # submit another response
-  observeEvent(input$submit_another, {
-    shinyjs::show("form")
-    shinyjs::hide("thankyou_msg")
-  })
-  
   # When the Submit button is clicked, submit the response
   observeEvent(input$submit_order, {
-    catchy("submit_order", f = update.current.orders, args = list(data = orderformData()))
+    # browser()
+    catchy("submit_order", f = update.current.orders, 
+           args = list(data = orderformData(), 
+                       drop.folder = drop.folder, 
+                       file.name = orders.file.name))
   })
+  # When the Submit button is clicked, submit the response
+  observeEvent(input$submit_order, {
+    # Update orders table
+    output$OrdersData <- DT::renderDataTable(
+      load.orders.data(drop.folder = drop.folder,                                           
+                       file.name = orders.file.name) %>% 
+        mutate(date = as.character(date)),
+      rownames = FALSE,
+      options = list(searching = FALSE, lengthChange = FALSE)
+      
+      
+    )
+    
+  })
+  
   # When the Submit button is clicked, submit the response
   observeEvent(input$submit_purchase, {
     # browser()
     catchy("submit_purchase", 
            f = update.purchase.answers, 
-            args  = list(data = purchaseformData(), 
-                         new.item = input$newitemcheck
+            args  = list(data = purchaseformData(),
+                         drop.folder = drop.folder,
+                         orders.file.name = orders.file.name,
+                         purchase.file.name = purchase.file.name,
+                         new.item = input$newitemcheck,
+                         db.responses.dir = db.responses.dir
                          ))
+    
   })
+  
+  observeEvent(input$submit_purchase, {
+    # browser()
+    # Update orders table
+    output$OrdersData <- DT::renderDataTable(
+      load.orders.data(drop.folder = drop.folder,                                           
+                       file.name = orders.file.name) %>% 
+        mutate(date = as.character(date)),
+      rownames = FALSE,
+      options = list(searching = FALSE, lengthChange = FALSE)
+      
+      
+    )
+    # Update purchases table
+    output$PurchasesData <- DT::renderDataTable(
+      load.purchase.data(drop.folder = drop.folder, 
+                         db.responses.dir = db.responses.dir,
+                         file.ending = purchase.file.name) %>% 
+        mutate(date = as.character(date)) %>% 
+        arrange(desc(date)),
+      rownames = FALSE,
+      options = list(searching = FALSE, lengthChange = FALSE)
+    )
+    
+  })
+  
   # When the Submit button is clicked, submit the response
   observeEvent(input$remove_order, {
     catchy("remove_order", 
            f = remove.orders, 
            args = list(
-             data = load.current.orders.data(), 
+             data = load.orders.data(drop.folder = drop.folder, 
+                                     file.name = orders.file.name), 
+             drop.folder = drop.folder,
+             orders.file.name = orders.file.name,
+             purchase.file.name = purchase.file.name,
+             db.responses.dir = db.responses.dir,
              id = input$remove.order.id))
   })
+  # When the Submit button is clicked, submit the response
+  observeEvent(input$remove_order, {
+    # Show the responses already submitted
+    output$OrdersData <- DT::renderDataTable(
+      load.orders.data(drop.folder = drop.folder, 
+                       file.name = orders.file.name) %>% 
+        mutate(date = as.character(date)),
+      rownames = FALSE,
+      options = list(searching = FALSE, lengthChange = FALSE)
+    )
+  })
+  
   
   observeEvent(input$remove_purchase, {
     catchy("remove_purchase", 
            f = remove.purchases, 
            args = list(
-             data = load.purchase.data(), 
+             data = load.purchase.data(drop.folder = drop.folder, 
+                                       db.responses.dir = db.responses.dir,
+                                       file.ending = purchase.file.name), 
+             drop.folder = drop.folder,
+             orders.file.name = orders.file.name,
+             purchase.file.name = purchase.file.name,
+             db.responses.dir = db.responses.dir,
              id = input$remove.purchase.id))
   })
-  
-  # # When the Submit button is clicked, submit the response
-  # observeEvent(input$submit_order, {
-  #   catchy("remove_purchase")
-  # })
-    
-  output$buycheck <- renderUI({
-    data <- load.current.orders.data()
-      
-      items <-  data$item
-    conditionalPanel(
-      condition = "input.newitemcheck == false",
-      selectInput("list.purchase.item", "What",
-                  items)
+  observeEvent(input$remove_purchase, {
+    # browser()
+    output$PurchasesData <- DT::renderDataTable(
+      load.purchase.data(drop.folder = drop.folder, 
+                         db.responses.dir = db.responses.dir,
+                         file.ending = purchase.file.name) %>% 
+        mutate(date = as.character(date)) %>% 
+        arrange(desc(date)),
+      rownames = FALSE,
+      options = list(searching = FALSE, lengthChange = FALSE)
     )
-  })
-  
-  
-  output$showPurchasesID <- renderUI({
-    data <- load.purchase.data()
-    items <-  data$id
     
-    
-    selectInput("remove.purchase.id", "Select ID of item to be removed",
-                  items)
   })
-  
-  output$showOrdersID <- renderUI({
-    data <- load.current.orders.data()
-    items <-  data$id
-    
-    selectInput("remove.order.id", "Select ID of item to be removed",
-                items)
+  # submit another response
+  observeEvent(input$submit_another, {
+    shinyjs::show("form")
+    shinyjs::hide("thankyou_msg")
   })
-  # output$showOrdersDate <- renderUI({
-  #   data <- load.current.orders.data()
-  #   dates <-  data$date
-  #   
-  #   selectInput("remove.item.date", "When",
-  #               dates)
-  # })
-  # 
-  # remove.purchase.id
-  # output$showPurchases <- renderUI({
-  #   data <- load.purchase.data()
-  #   items <-  data$item
-  #   
-  #   selectInput("remove.purchase", "What",
-  #               items)
-  # })
-  # 
-  # output$showPurchaseDate <- renderUI({
-  #   data <- load.purchase.data()
-  #   dates <-  data$date
-  #   
-  #   selectInput("remove.purchase.date", "When",
-  #               dates)
-  # })
-  # 
-  
-  # Show the responses already submitted
-  output$OrdersData <- DT::renderDataTable(
-    load.current.orders.data() %>% 
-      mutate(date = as.character(date)),
-    rownames = FALSE,
-    options = list(searching = FALSE, lengthChange = FALSE)
-  )
-  
-  
-  output$PurchasesData <- DT::renderDataTable(
-    load.purchase.data() %>% 
-      mutate(date = as.character(date)),
-    rownames = FALSE,
-    options = list(searching = FALSE, lengthChange = FALSE)
-  )
-  
-  
-  # Allow user to download responses
-  output$downloadPurchBtn <- downloadHandler(
-    filename = function() { 
-      sprintf("%s.csv", humanTime())
-    },
-    content = function(file) {
-      write.csv(load.purchase.data(), file, row.names = FALSE)
-    }
-  )  
-  
-  # Allow user to download responses
-  output$downloadOrdersBtn <- downloadHandler(
-    filename = function() { 
-      sprintf("%s.csv", humanTime())
-    },
-    content = function(file) {
-      write.csv(load.current.orders.data(), file, row.names = FALSE)
-    }
-  )  
-  
-  output$Tables <- renderUI({
-    if(action() %in% c("Add purchase", "Remove purchase")){
-      div(
-        id = "adminPanel",
-        h2("Previous purchases"),
-        downloadButton("downloadPurchBtn", "Download purchases"), br(), br(),
-        DT::dataTableOutput("PurchasesData")
-        
-      )
-    }else if(action() %in% c("Add order", "Remove order")){
-      div(
-        h2("Current orders"),
-        downloadButton("downloadOrdersBtn", "Download Orders"), br(), br(),
-        DT::dataTableOutput("OrdersData") 
-      )
-    }
-  })
-  
-
-  
   
 }
 )

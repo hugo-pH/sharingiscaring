@@ -1,9 +1,11 @@
 library(shiny)
+library(shinythemes)
 fluidPage(
+  theme = shinytheme("sandstone"),
   shinyjs::useShinyjs(),
-  title = "Home needs",
+  title = "The street of the children's dike",
   div(id = "header",
-      h1("The ultimate shoppinglist app"),
+      h1("Sharing is caring"),
       h4("")),
   fluidRow(
     column(12,
@@ -21,7 +23,27 @@ fluidPage(
     )
   ),
   fluidRow(
-    column(12, uiOutput("Tables"))
-    )
+    tabsetPanel(
+            tabPanel("Summary", uiOutput("table.orders"), uiOutput("table.purchases")),
+            tabPanel("Purchases on time", plotOutput("plot.time.purchases")),
+            tabPanel("Total month", plotOutput("plot.total.purchases")),
+            tabPanel("Balance", tableOutput("adjust.payments"))
+            
+            
+            # tabPanel("Figures", plotOutput("plot.total.purchases"), plotOutput("plot.total.purchases"))
+      )
+    # column(12, uiOutput("Tables"))
+  )
+#   fluidRow(
+#     column(12,
+#     tabsetPanel(
+#       tabPanel("Summary", uiOutput("Tables")),
+#       tabPanel("Figures", plotOutput("plot.total.purchases"), plotOutput("plot.total.purchases"))
+# )
+#       # ,
+#       # tabPanel("Table", tableOutput("table"))
+#     )
+#     
+#     )
 )
   
