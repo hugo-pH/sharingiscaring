@@ -16,6 +16,7 @@ db.responses.dir <- file.path(drop.folder, "responses_db")
 orders.file.name <- c("current_orders.csv")
 purchase.file.name <- c("purchases.csv")
 # source("global.R")
+users <- read.csv("./users.csv") %>% unlist() %>% as.character()
 
 
 shinyServer(function(input, output, session){
@@ -33,7 +34,7 @@ shinyServer(function(input, output, session){
     if(action() == "Add order"){
       tagList(
         selectInput("name", "Who",
-                    c(" ",  "E", "A", "H")),
+                    c(" ",  users)),
         textInput("item", "What"),
         selectInput("priority", "Priority",
                     c("",  "urgent", "take it easy")),

@@ -29,21 +29,8 @@ fluidPage(
             tabPanel("Total month", plotOutput("plot.total.purchases")),
             tabPanel("Balance", tableOutput("adjust.payments"))
             
-            
-            # tabPanel("Figures", plotOutput("plot.total.purchases"), plotOutput("plot.total.purchases"))
-      )
-    # column(12, uiOutput("Tables"))
+                  )
   )
-#   fluidRow(
-#     column(12,
-#     tabsetPanel(
-#       tabPanel("Summary", uiOutput("Tables")),
-#       tabPanel("Figures", plotOutput("plot.total.purchases"), plotOutput("plot.total.purchases"))
-# )
-#       # ,
-#       # tabPanel("Table", tableOutput("table"))
-#     )
-#     
-#     )
+
 )
   
