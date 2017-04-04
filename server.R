@@ -53,9 +53,7 @@ shinyServer(function(input, output, session){
         # id = "form_buy",
         h3 = "I bought something",
         selectInput("buy.name", "Who",
-                    # items
-                    c("",  "E", "A", "H")
-        ),
+                    c(" ",  users)),
         checkboxInput("newitemcheck", "The item was not in the list", F ),
         uiOutput("new.item.check"),
         ## TODO input for bought objects already in the list
